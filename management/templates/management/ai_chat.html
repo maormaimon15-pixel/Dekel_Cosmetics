@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}דקל-בוט – עוזרת חכמה{% endblock %}
+
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[2fr,1.3fr]">
+
+    <!-- Main chat panel -->
+    <section class="bg-white rounded-2xl shadow-sm p-5 md:p-7 flex flex-col gap-5">
+
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shrink-0">
+                🤖
+            </div>
+            <div>
+                <h2 class="text-xl md:text-2xl font-semibold text-[#b06d4a]">דקל-בוט</h2>
+                <p class="text-sm text-slate-500">שאלי אותי שאלות עסקיות בעברית</p>
+            </div>
+        </div>
+
+        <!-- Answer bubble (shown only after a question is asked) -->
+        {% if answer %}
+        <div class="rounded-2xl bg-orange-50 border border-orange-200 p-4 md:p-5">
+            <p class="text-xs text-[#c27b55] font-semibold mb-2 uppercase tracking-wide">תשובת דקל-בוט</p>
+            <p class="text-base md:text-lg text-slate-800 whitespace-pre-line leading-relaxed">{{ answer }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Question form -->
+        <form method="post" id="bot-form" class="flex flex-col gap-3">
+            {% csrf_token %}
+            <label class="text-base font-medium text-slate-700">שאלי שאלה חופשית בעברית:</label>
+            <textarea
+                id="bot-textarea"
+                name="question"
+                rows="3"
+                class="w-full border border-slate-200 rounded-xl px-4 py-3 text-base resize-none focus:outline-none focus:border-[#c27b55] transition"
+                placeholder="למשל: מי הלקוחה הכי תכופה? — Enter לשליחה, Shift+Enter לשורה חדשה"
+            >{{ question }}</textarea>
+            <div class="flex justify-end">
+                <button
+                    type="submit"
+                    class="px-7 py-3 rounded-full bg-[#c27b55] text-white text-base font-medium shadow-sm hover:shadow-md hover:bg-[#a9603f] transition"
+                >
+                    שליחה ←
+                </button>
+            </div>
+        </form>
+
+    </section>
+
+    <!-- Capabilities sidebar -->
+    <aside class="space-y-4">
+
+        <section class="bg-white rounded-2xl shadow-sm p-5">
+            <h3 class="text-base font-semibold text-slate-800 mb-3">מה אני יודעת לענות?</h3>
+            <ul class="space-y-2 text-sm text-slate-600">
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>ביקור אחרון של לקוחה</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>הכנסות לפי חודש</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>הלקוחה הכי תכופה / הכי רווחית</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>החודש הכי רווחי</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>ספירת טיפולים לפי סוג ותקופה</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>סך הכנסות / הוצאות</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-[#c27b55] font-bold mt-0.5">•</span>
+                    <span>מספר לקוחות ותורים</span>
+                </li>
+            </ul>
+        </section>
+
+        <section class="bg-orange-50 border border-orange-100 rounded-2xl p-5">
+            <h3 class="text-base font-semibold text-slate-800 mb-3">דוגמאות לשאלות</h3>
+            <div class="space-y-2 text-sm text-slate-700">
+                {% for ex in example_questions %}
+                <button type="button" class="example-btn block w-full text-right px-3 py-2 rounded-xl hover:bg-orange-100 transition text-slate-700 border border-orange-100 hover:border-orange-200">{{ ex }}</button>
+                {% endfor %}
+            </div>
+        </section>
+
+    </aside>
+</div>
+
+<script>
+  // Clicking an example fills the textarea
+  document.querySelectorAll('.example-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const ta = document.getElementById('bot-textarea');
+      if (ta) { ta.value = btn.textContent.trim(); ta.focus(); }
+    });
+  });
+
+  // Enter submits the form; Shift+Enter inserts a newline
+  const botTextarea = document.getElementById('bot-textarea');
+  const botForm     = document.getElementById('bot-form');
+  if (botTextarea && botForm) {
+    botTextarea.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        botForm.submit();
+      }
+    });
+  }
+</script>
+{% endblock %}

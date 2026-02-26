@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block title %}כספים - Dekel Cosmetics{% endblock %}
+
+{% block content %}
+
+<!-- ── KPI Row ───────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-emerald-50 border border-emerald-100 rounded-2xl px-6 py-5 flex flex-col gap-1">
+        <p class="text-sm text-slate-500">הכנסות בתקופה</p>
+        <p class="text-3xl font-bold text-emerald-700">{{ income }} ₪</p>
+    </div>
+    <div class="bg-rose-50 border border-rose-100 rounded-2xl px-6 py-5 flex flex-col gap-1">
+        <p class="text-sm text-slate-500">הוצאות בתקופה</p>
+        <p class="text-3xl font-bold text-rose-700">{{ expenses }} ₪</p>
+    </div>
+    <div class="bg-orange-50 border border-orange-100 rounded-2xl px-6 py-5 flex flex-col gap-1">
+        <p class="text-sm text-slate-500">רווח משוער</p>
+        <p class="text-3xl font-bold {% if profit >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">{{ profit }} ₪</p>
+    </div>
+</div>
+
+<!-- ── Period filter ─────────────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+    <span class="text-sm text-slate-500 font-medium">טווח זמן:</span>
+    <form method="get" class="flex flex-wrap gap-2 text-sm">
+        {% for val, label in period_choices %}
+        <button name="period" value="{{ val }}"
+            class="px-4 py-1.5 rounded-full border transition
+                {% if period == val %}bg-[#c27b55] text-white border-[#c27b55]{% else %}border-slate-200 text-slate-600 hover:border-[#c27b55] hover:text-[#c27b55]{% endif %}">
+            {{ label }}
+        </button>
+        {% endfor %}
+    </form>
+    <p class="text-xs text-slate-400 sm:mr-auto">{{ start|date:"d/m/Y" }} – {{ end|date:"d/m/Y" }}</p>
+</div>
+
+<!-- ── Charts Row ───────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+
+    <!-- Donut: treatment distribution -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 flex flex-col gap-3">
+        <h3 class="text-base font-semibold text-slate-700">התפלגות טיפולים</h3>
+        <div class="relative h-52 flex items-center justify-center">
+            <canvas id="serviceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Bar: age distribution -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 flex flex-col gap-3">
+        <h3 class="text-base font-semibold text-slate-700">התפלגות גילאי לקוחות</h3>
+        <div class="relative h-52">
+            <canvas id="ageChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Bar: monthly income -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 flex flex-col gap-3 md:col-span-2 xl:col-span-1">
+        <h3 class="text-base font-semibold text-slate-700">הכנסות חודשיות</h3>
+        <div class="relative h-52">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Transactions table ────────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5">
+    <h3 class="text-base font-semibold text-slate-700 mb-4">תנועות כספיות</h3>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                <tr>
+                    <th class="px-4 py-2.5 text-right">תאריך</th>
+                    <th class="px-4 py-2.5 text-right">סוג</th>
+                    <th class="px-4 py-2.5 text-right">סכום</th>
+                    <th class="px-4 py-2.5 text-right hidden md:table-cell">קטגוריה</th>
+                    <th class="px-4 py-2.5 text-right hidden md:table-cell">תיאור</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for record in records %}
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="px-4 py-2.5 text-slate-700">{{ record.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-2.5">
+                        {% if record.record_type == "income" %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">הכנסה</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-xs font-medium">הוצאה</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 font-semibold {% if record.record_type == 'income' %}text-emerald-700{% else %}text-rose-700{% endif %}">
+                        {{ record.amount }} ₪
+                    </td>
+                    <td class="px-4 py-2.5 text-slate-500 hidden md:table-cell">{{ record.category }}</td>
+                    <td class="px-4 py-2.5 text-slate-400 hidden md:table-cell">{{ record.description|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-slate-400 text-center text-sm">אין תנועות כספיות בתקופה שנבחרה.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── Chart.js init ─────────────────────────────────────────────────────── -->
+<script>
+  // Deep Peach · Bronze · Soft Coral · Gold · Dusty Rose · Teal
+  const PEACH_PALETTE = ['#f97316', '#b06d4a', '#fb7185', '#f59e0b', '#c084fc', '#2dd4bf'];
+  const SOFT_PALETTE  = ['#fed7aa', '#fde68a', '#bbf7d0', '#bfdbfe', '#e9d5ff', '#fecaca'];
+
+  // ── Treatment donut ─────────────────────────────────────────────────────
+  (function () {
+    const data = {{ service_chart|safe }};
+    if (!data.labels.length) return;
+    new Chart(document.getElementById('serviceChart'), {
+      type: 'doughnut',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: PEACH_PALETTE,
+          borderWidth: 2,
+          borderColor: '#fff',
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 14, padding: 10 } },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw} תורים` } },
+        },
+      },
+    });
+  })();
+
+  // ── Age bar ─────────────────────────────────────────────────────────────
+  (function () {
+    const data = {{ age_chart|safe }};
+    new Chart(document.getElementById('ageChart'), {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'לקוחות',
+          data: data.values,
+          backgroundColor: SOFT_PALETTE,
+          borderRadius: 8,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw} לקוחות` } },
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+          x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        },
+      },
+    });
+  })();
+
+  // ── Monthly income line ─────────────────────────────────────────────────
+  (function () {
+    const data = {{ monthly_chart|safe }};
+    new Chart(document.getElementById('monthlyChart'), {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'הכנסות (₪)',
+          data: data.values,
+          backgroundColor: '#fed7aa',
+          borderColor: '#f97316',
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw.toLocaleString()} ₪` } },
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+        },
+      },
+    });
+  })();
+</script>
+
+{% endblock %}

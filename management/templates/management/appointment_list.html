@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+<style>
+  :root {
+    --fc-border-color: #fed7aa;
+    --fc-page-bg-color: transparent;
+    --fc-neutral-bg-color: #fff7ed;
+    --fc-today-bg-color: #ffedd5;
+    --fc-highlight-color: #fed7aa66;
+    --fc-button-bg-color: #c27b55;
+    --fc-button-border-color: #c27b55;
+    --fc-button-hover-bg-color: #a9603f;
+    --fc-button-hover-border-color: #a9603f;
+    --fc-button-active-bg-color: #a9603f;
+    --fc-button-active-border-color: #a9603f;
+    --fc-event-bg-color: #fed7aa;
+    --fc-event-border-color: #f97316;
+    --fc-event-text-color: #7c2d12;
+  }
+  .fc-theme-standard .fc-toolbar-title {
+    font-size: 1.1rem;
+    color: #7c2d12;
+  }
+</style>
+{% endblock %}
+
+{% block title %}תורים - Dekel Cosmetics{% endblock %}
+
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[3fr,1.3fr]">
+    <section class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div>
+                <h2 class="text-xl md:text-2xl font-semibold text-slate-800">יומן תורים</h2>
+                <p class="text-sm text-slate-500">לחצי על משבצת פנויה לקביעת תור · גרירה לבחירת משך</p>
+            </div>
+            <form method="get" class="flex items-center gap-2 text-sm">
+                <label for="date" class="text-slate-600">קפיצה לתאריך:</label>
+                <input id="date" name="date" type="date" value="{{ selected_date|date:"Y-m-d" }}" class="border rounded-xl px-3 py-2">
+                <button type="submit" class="px-4 py-2 rounded-xl bg-[#c27b55] text-white shadow-sm hover:bg-[#a9603f] transition">
+                    הצג
+                </button>
+            </form>
+        </div>
+
+        <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+            <div id="calendar" class="fc-rtl"></div>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">
+            לחיצה על משבצת ביומן תפתח חלון הזנת תור חדש לשעה/תאריך שנבחרו.
+        </p>
+    </section>
+
+    <aside class="space-y-4">
+        <section class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-2">רשימת תורים ליום זה</h3>
+            {% if appointments %}
+                <ul class="divide-y divide-slate-100 text-sm max-h-[320px] overflow-y-auto">
+                    {% for appt in appointments %}
+                        <li class="py-2 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="font-medium text-slate-800">
+                                    {{ appt.start_time|time:"H:i" }} · {{ appt.client.name }}
+                                </p>
+                                <p class="text-xs text-slate-500">
+                                    {{ appt.get_service_type_display }} · {{ appt.custom_price }} ₪
+                                </p>
+                            </div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-600">
+                                {% if appt.is_completed %}הושלם{% else %}מתוכנן{% endif %}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-xs text-slate-500">אין תורים בתאריך זה.</p>
+            {% endif %}
+        </section>
+        <section class="bg-white rounded-2xl shadow-sm p-4">
+            <a href="{% url 'management:client_create' %}" class="block mb-3 px-4 py-2.5 rounded-full bg-[#c27b55] text-white text-center text-sm md:text-base shadow-sm hover:shadow-md hover:bg-[#a9603f] transition">
+                + יצירת לקוחה חדשה
+            </a>
+            <h3 class="text-sm font-semibold text-slate-700 mb-2">טיפים לניהול יומן</h3>
+            <p class="text-xs text-slate-500">
+                מומלץ לרכז טיפולים ארוכים לשעות רגועות, ולהשאיר חלונות קצרים למקרי חירום או איחורים.
+            </p>
+        </section>
+    </aside>
+</div>
+
+<!-- מודאל יצירת תור -->
+<div id="booking-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-5 md:p-7 border border-orange-100">
+        <div class="flex items-center justify-between mb-4">
+            <h2 id="modal-title" class="text-xl font-semibold text-[#b06d4a]">תור חדש</h2>
+            <button type="button" id="booking-close" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 text-2xl leading-none transition">
+                ×
+            </button>
+        </div>
+        <form method="post" action="{% url 'management:appointment_create' %}" class="space-y-4 text-base">
+            {% csrf_token %}
+            <input type="hidden" name="date" id="booking-date" value="{{ selected_date|date:"Y-m-d" }}">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block mb-1.5 text-slate-700 font-medium">שעת התחלה</label>
+                    <input type="time" name="time" id="booking-time" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+                </div>
+                <div>
+                    <label class="block mb-1.5 text-slate-700 font-medium">משך (דקות)</label>
+                    <input type="number" name="duration_minutes" id="booking-duration" value="60" min="15" step="15" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block mb-1.5 text-slate-700 font-medium">לקוחה <span class="text-rose-500">*</span></label>
+                <select name="client" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+                    <option value="">בחרי לקוחה...</option>
+                    {% for client in clients %}
+                        <option value="{{ client.id }}">{{ client.name }} · {{ client.phone }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="new-client-btn" class="inline-block mt-1.5 text-sm text-[#c27b55] hover:underline">
+                    + הוספת לקוחה חדשה
+                </button>
+            </div>
+            <div>
+                <label class="block mb-1.5 text-slate-700 font-medium">סוג טיפול <span class="text-rose-500">*</span></label>
+                <select name="service_type" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+                    <option value="">בחרי טיפול...</option>
+                    <option value="face">טיפול פנים</option>
+                    <option value="brows">עיצוב גבות</option>
+                    <option value="gel">לק ג'ל</option>
+                </select>
+            </div>
+            <div>
+                <label class="block mb-1.5 text-slate-700 font-medium">מחיר (₪) <span class="text-rose-500">*</span></label>
+                <input type="number" step="0.01" name="price" required placeholder="0.00" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+            </div>
+            <div>
+                <label class="block mb-1.5 text-slate-700 font-medium">הערות</label>
+                <textarea name="notes" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-1">
+                <button type="button" id="booking-cancel" class="px-5 py-2.5 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition">
+                    ביטול
+                </button>
+                <button type="submit" class="px-6 py-2.5 rounded-full bg-[#c27b55] text-white shadow-sm hover:shadow-md hover:bg-[#a9603f] transition font-medium">
+                    שמירת תור
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── מודאל יצירת לקוחה חדשה (inline, z-[60] גבוה מעל מודאל התור) ── -->
+<div id="new-client-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] hidden backdrop-blur-sm">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5 border border-orange-100">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold text-[#b06d4a]">לקוחה חדשה</h3>
+      <button type="button" id="new-client-close" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 text-xl leading-none transition">×</button>
+    </div>
+    <form id="new-client-form" class="space-y-3 text-sm" novalidate>
+      <input type="text" name="name" placeholder="שם מלא *" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+      <input type="text" name="phone" placeholder="טלפון *" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+      <input type="email" name="email" placeholder="אימייל (רשות)" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+      <div class="grid grid-cols-2 gap-3">
+        <input type="number" name="age" placeholder="גיל" min="1" max="120" class="border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none">
+        <input type="date" name="birth_date" class="border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none text-slate-500">
+      </div>
+      <textarea name="notes" rows="2" placeholder="הערות / העדפות" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:border-[#c27b55] focus:outline-none resize-none"></textarea>
+      <div id="new-client-error" class="text-rose-600 text-xs hidden px-1"></div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="new-client-cancel" class="px-4 py-2 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 transition">ביטול</button>
+        <button type="submit" class="px-5 py-2 rounded-full bg-[#c27b55] text-white shadow-sm hover:bg-[#a9603f] transition">שמירה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) return;
+
+    // ── Modal helpers ──────────────────────────────────────────────────────────
+    const modal       = document.getElementById('booking-modal');
+    const dateInput   = document.getElementById('booking-date');
+    const timeInput   = document.getElementById('booking-time');
+    const durInput    = document.getElementById('booking-duration');
+    const titleEl     = document.getElementById('modal-title');
+    const closeBtn    = document.getElementById('booking-close');
+    const cancelBtn   = document.getElementById('booking-cancel');
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    function closeModal() { modal && modal.classList.add('hidden'); }
+    closeBtn  && closeBtn.addEventListener('click', closeModal);
+    cancelBtn && cancelBtn.addEventListener('click', closeModal);
+    modal     && modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeModal();
+    });
+
+    /**
+     * Open the booking modal.
+     * @param {string} startStr  – ISO datetime string for the start of the slot.
+     * @param {string|null} endStr – ISO datetime string for the end; used to compute duration.
+     */
+    function openModal(startStr, endStr) {
+      if (!modal || !dateInput || !timeInput) return;
+
+      const start = new Date(startStr);
+      dateInput.value = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
+      timeInput.value = pad(start.getHours()) + ':' + pad(start.getMinutes());
+
+      // Sync duration from drag-selection (or fall back to 60 min)
+      if (endStr && durInput) {
+        const diffMins = Math.round((new Date(endStr) - start) / 60000);
+        durInput.value = diffMins > 0 ? diffMins : 60;
+      } else if (durInput) {
+        durInput.value = 60;
+      }
+
+      // Update modal title to match the selected date
+      if (titleEl) {
+        const dateLabel = start.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: 'numeric' });
+        titleEl.textContent = 'תור חדש ל-' + dateLabel;
+      }
+
+      modal.classList.remove('hidden');
+      // Focus the client select on next frame for accessibility
+      setTimeout(function () {
+        const sel = modal.querySelector('select[name="client"]');
+        sel && sel.focus();
+      }, 80);
+    }
+
+    // ── Events data from Django ────────────────────────────────────────────────
+    const events = [
+      {% for appt in week_appointments %}
+      {
+        id: 'appt-{{ appt.pk }}',
+        title: '{{ appt.client.name|escapejs }} – {{ appt.get_service_type_display|escapejs }}',
+        start: '{{ appt.start_time|date:"c" }}',
+        {% with appt.duration_minutes as dur %}
+        end: new Date(new Date('{{ appt.start_time|date:"c" }}').getTime() + {{ dur|default:60 }} * 60000).toISOString(),
+        {% endwith %}
+        extendedProps: { type: 'appointment', price: '{{ appt.custom_price }}' },
+      },
+      {% endfor %}
+      {% for ev in personal_events %}
+      {
+        id: 'personal-{{ ev.pk }}',
+        title: '{{ ev.title|escapejs }}',
+        start: '{{ ev.start_time|date:"c" }}',
+        {% if ev.end_time %}end: '{{ ev.end_time|date:"c" }}',{% endif %}
+        backgroundColor: '#fef9c3',
+        borderColor: '#fbbf24',
+        textColor: '#78350f',
+        extendedProps: { type: 'personal' },
+      },
+      {% endfor %}
+    ];
+
+    // ── FullCalendar init ──────────────────────────────────────────────────────
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'timeGridWeek',
+      locale: 'he',
+      direction: 'rtl',
+      firstDay: 0,
+      slotMinTime: '08:00:00',
+      slotMaxTime: '22:00:00',
+      slotDuration: '00:30:00',
+      eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+      slotLabelFormat:  { hour: '2-digit', minute: '2-digit', hour12: false },
+      nowIndicator: true,
+      selectable: true,
+      selectMirror: true,
+      unselectAuto: true,
+      height: 'auto',
+      expandRows: true,
+      headerToolbar: {
+        left:   'prev,next today',
+        center: 'title',
+        right:  'timeGridDay,timeGridWeek,dayGridMonth',
+      },
+      buttonText: {
+        today: 'היום',
+        month: 'חודש',
+        week:  'שבוע',
+        day:   'יום',
+        list:  'רשימה',
+      },
+      initialDate: '{{ selected_date|date:"Y-m-d" }}',
+      events: events,
+
+      // Month-view date click → drill down to Day view; do NOT open booking form
+      dateClick: function (info) {
+        if (info.view.type === 'dayGridMonth') {
+          calendar.changeView('timeGridDay', info.dateStr);
+          return;
+        }
+        // Day / Week view: single click opens modal with 60-min default
+        openModal(info.dateStr, null);
+      },
+
+      // Drag-selection: captures exact start & end → duration is synced precisely
+      select: function (info) {
+        if (info.view.type === 'dayGridMonth') {
+          // Clicking/dragging in month view just drills down
+          calendar.changeView('timeGridDay', info.startStr);
+          calendar.unselect();
+          return;
+        }
+        // Day / Week view drag: pass both start and end for duration computation
+        openModal(info.startStr, info.endStr);
+      },
+    });
+
+    calendar.render();
+  });
+
+  // ── New-client inline modal ────────────────────────────────────────────────
+  (function () {
+    const ncModal  = document.getElementById('new-client-modal');
+    const ncBtn    = document.getElementById('new-client-btn');
+    const ncClose  = document.getElementById('new-client-close');
+    const ncCancel = document.getElementById('new-client-cancel');
+    const ncForm   = document.getElementById('new-client-form');
+    const ncError  = document.getElementById('new-client-error');
+
+    function openNewClient() { ncModal.classList.remove('hidden'); }
+    function closeNewClient() {
+      ncModal.classList.add('hidden');
+      ncError.classList.add('hidden');
+      ncError.textContent = '';
+    }
+
+    ncBtn    && ncBtn.addEventListener('click', openNewClient);
+    ncClose  && ncClose.addEventListener('click', closeNewClient);
+    ncCancel && ncCancel.addEventListener('click', closeNewClient);
+    ncModal  && ncModal.addEventListener('click', function (e) {
+      if (e.target === ncModal) closeNewClient();
+    });
+
+    ncForm && ncForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      ncError.classList.add('hidden');
+      const formData = new FormData(this);
+      // Grab CSRF token from the booking form's hidden input
+      const csrf = document.querySelector('input[name=csrfmiddlewaretoken]');
+      try {
+        const res  = await fetch('{% url "management:client_create_ajax" %}', {
+          method:  'POST',
+          headers: { 'X-CSRFToken': csrf ? csrf.value : '' },
+          body:    formData,
+        });
+        const data = await res.json();
+        if (data.ok) {
+          // Add new option to the booking-modal client <select> and auto-select it
+          const select = document.querySelector('#booking-modal select[name="client"]');
+          if (select) {
+            const opt = document.createElement('option');
+            opt.value = data.id;
+            opt.textContent = data.name + ' · ' + data.phone;
+            opt.selected = true;
+            select.appendChild(opt);
+          }
+          ncForm.reset();
+          closeNewClient();
+        } else {
+          ncError.textContent = data.error || 'שגיאה בשמירה';
+          ncError.classList.remove('hidden');
+        }
+      } catch (err) {
+        ncError.textContent = 'שגיאת רשת – נסי שוב';
+        ncError.classList.remove('hidden');
+      }
+    });
+  })();
+</script>
+
+{% endblock %}
+

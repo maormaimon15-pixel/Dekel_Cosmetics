@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}לקוחה חדשה - Dekel Cosmetics{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto bg-white rounded-2xl shadow-sm p-5 md:p-7">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl md:text-2xl font-semibold text-slate-800">יצירת לקוחה חדשה</h2>
+        <a href="{% url 'management:client_list' %}" class="text-sm text-slate-500 hover:text-slate-700">
+            חזרה לרשימת הלקוחות
+        </a>
+    </div>
+    <form method="post" class="space-y-4 text-sm md:text-base">
+        {% csrf_token %}
+        <div>
+            <label class="block mb-1 text-slate-700">שם מלא</label>
+            <input type="text" name="name" class="w-full border rounded-xl px-3 py-2.5" required>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block mb-1 text-slate-700">טלפון</label>
+                <input type="text" name="phone" class="w-full border rounded-xl px-3 py-2.5" required>
+            </div>
+            <div>
+                <label class="block mb-1 text-slate-700">אימייל</label>
+                <input type="email" name="email" class="w-full border rounded-xl px-3 py-2.5">
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block mb-1 text-slate-700">גיל</label>
+                <input type="number" name="age" min="0" class="w-full border rounded-xl px-3 py-2.5">
+            </div>
+            <div>
+                <label class="block mb-1 text-slate-700">תאריך לידה</label>
+                <input type="date" name="birth_date" class="w-full border rounded-xl px-3 py-2.5">
+            </div>
+        </div>
+        <div>
+            <label class="block mb-1 text-slate-700">הערות / העדפות</label>
+            <textarea name="notes" rows="3" class="w-full border rounded-xl px-3 py-2.5"></textarea>
+        </div>
+        <div class="flex items-center justify-end gap-3 pt-2">
+            <a href="{% url 'management:client_list' %}" class="px-4 py-2 rounded-full border text-slate-700 hover:bg-slate-50">
+                ביטול
+            </a>
+            <button type="submit" class="px-5 py-2.5 rounded-full bg-[#c27b55] text-white shadow-sm hover:shadow-md hover:bg-[#a9603f] transition">
+                שמירה
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

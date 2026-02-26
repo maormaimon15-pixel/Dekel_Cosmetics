@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dekel Cosmetics - ניהול{% endblock %}</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        corePlugins: { preflight: true },
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['"Cormorant Garamond"', 'serif'],
+              sans: ['system-ui', '-apple-system', 'sans-serif'],
+              mono: ['"Space Mono"', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body { direction: rtl; text-align: right; }
+      /* עיצוב הלוגו - נקי ויוקרתי */
+      .logo-font  { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.28em; font-weight: 600; }
+      /* עיצוב השעון הדיגיטלי */
+      .clock-font { font-family: 'Space Mono', monospace; letter-spacing: 0.12em; }
+      
+      /* עיצוב רכיבי FullCalendar בצבעי אפרסק/ברונזה של דקל */
+      .fc { --fc-button-bg-color: #fdf2f0; --fc-button-text-color: #9a3412; --fc-border-color: #fed7aa; }
+      .fc-event { background-color: #ffedd5 !important; border: 1px solid #fdba74 !important; color: #9a3412 !important; }
+      
+      /* התאמות לאייפד ולמובייל */
+      @media (max-width: 1024px) {
+        .logo-font { letter-spacing: 0.15em; font-size: 2rem; }
+      }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-white text-slate-900 min-h-screen">
+<div class="flex flex-col min-h-screen">
+    
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm border-b border-orange-100">
+        <div dir="ltr" class="max-w-7xl mx-auto px-8 py-5 flex flex-row items-center justify-between gap-8">
+
+            <div class="shrink-0 flex items-center">
+                <a href="{% url 'management:dashboard' %}">
+                    <h1 class="logo-font text-3xl md:text-5xl font-bold text-[#b06d4a] uppercase leading-tight">
+                        DEKEL COSMETICS
+                    </h1>
+                </a>
+            </div>
+
+            <nav class="flex flex-wrap gap-3 text-base md:text-lg">
+                <a href="{% url 'management:dashboard' %}" 
+                   class="px-6 py-2.5 rounded-full border transition shadow-sm hover:shadow-md hover:scale-[1.03] 
+                   {% if request.resolver_match.url_name == 'dashboard' %}
+                        bg-[#c27b55] border-[#c27b55] text-white font-bold shadow-md
+                   {% else %}
+                        bg-[#f5e6da] border-[#ddb99a] text-[#7c3a1e] font-semibold hover:bg-[#efd5c0]
+                   {% endif %}">
+                   עמוד הבית
+                </a>
+
+                <a href="{% url 'management:appointment_list' %}" class="px-5 py-2.5 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.03] {% if request.resolver_match.url_name == 'appointment_list' %}border-2 border-[#c27b55] font-bold{% endif %}">תורים</a>
+                <a href="{% url 'management:client_list' %}" class="px-5 py-2.5 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.03] {% if 'client' in request.resolver_match.url_name %}border-2 border-[#c27b55] font-bold{% endif %}">לקוחות</a>
+                <a href="{% url 'management:finance_dashboard' %}" class="px-5 py-2.5 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.03] {% if request.resolver_match.url_name == 'finance_dashboard' %}border-2 border-[#c27b55] font-bold{% endif %}">כספים</a>
+                <a href="{% url 'management:ai_chat' %}" class="px-5 py-2.5 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.03] {% if request.resolver_match.url_name == 'ai_chat' %}border-2 border-[#c27b55] font-bold{% endif %}">דקל-בוט</a>
+            </nav>
+
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl mx-auto w-full px-6 py-10 text-lg md:text-xl">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-white border-t py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-base text-slate-600">
+            <div class="flex gap-6">
+                <p><span class="font-bold">טלפון:</span> 050-0000000</p>
+                <p><span class="font-bold">אימייל:</span> dekel@example.com</p>
+            </div>
+            <div class="flex gap-6 font-medium">
+                <a href="#" class="hover:text-orange-600 transition">Instagram</a>
+                <a href="#" class="hover:text-orange-600 transition">WhatsApp</a>
+                <span class="text-slate-300">|</span>
+                <span class="font-bold text-[#b06d4a]">DEKEL COSMETICS</span>
+            </div>
+        </div>
+    </footer>
+</div>
+</body>
+</html>

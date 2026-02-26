@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}לוח ראשי - Dekel Cosmetics{% endblock %}
+
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+
+    <!-- ── Main: today's appointments ───────────────────────────────────── -->
+    <section class="bg-white rounded-2xl shadow-sm p-5 md:p-7">
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <h2 class="text-xl md:text-2xl font-semibold text-slate-800">מה יש לנו היום?</h2>
+                <p class="text-sm text-slate-400 mt-0.5">{{ today|date:"l, d בF Y" }}</p>
+            </div>
+            <a href="{% url 'management:appointment_list' %}"
+               class="inline-flex items-center gap-1 px-4 py-2 text-sm rounded-full bg-[#c27b55] text-white shadow-sm hover:bg-[#a9603f] transition">
+                + תור חדש
+            </a>
+        </div>
+
+        {% if today_appointments %}
+            <ul class="divide-y divide-slate-100">
+                {% for appt in today_appointments %}
+                <li class="py-3.5 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center text-sm font-bold text-[#b06d4a] shrink-0">
+                            {{ appt.start_time|date:"H:i" }}
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-800">
+                                {{ appt.client.name }}
+                                <span class="text-slate-400 font-normal">·</span>
+                                {{ appt.get_service_type_display }}
+                            </p>
+                            <p class="text-xs text-slate-500">
+                                {{ appt.duration_minutes }} דק' · {{ appt.custom_price }} ₪
+                            </p>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if appt.current_status == 'הושלם' %}bg-emerald-50 text-emerald-700
+                        {% elif appt.current_status == 'בטיפול' %}bg-violet-100 text-violet-700 animate-pulse
+                        {% else %}bg-orange-50 text-orange-700{% endif %}">
+                        {{ appt.current_status }}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <span class="text-5xl">🌸</span>
+                <p class="text-lg font-medium text-slate-600">יום חופשי! זמן לפינוק עצמי</p>
+                <p class="text-sm text-slate-400">אין תורים מתוכננים להיום.</p>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- ── Sidebar ───────────────────────────────────────────────────────── -->
+    <aside class="space-y-5">
+
+        <!-- Clock -->
+        <section class="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center gap-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-widest">שעון</p>
+            <p id="live-clock" class="clock-font text-3xl font-bold text-[#b06d4a]">00:00:00</p>
+            <p id="live-date" class="text-xs text-slate-400"></p>
+        </section>
+
+        <!-- Finance summary -->
+        <section class="bg-white rounded-2xl shadow-sm p-5">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">סיכום כספי</h3>
+            <dl class="space-y-2.5 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-slate-500">הכנסות היום</dt>
+                    <dd class="font-semibold text-emerald-600">{{ income_today }} ₪</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-slate-500">הכנסות השבוע</dt>
+                    <dd class="font-semibold text-emerald-600">{{ income_week }} ₪</dd>
+                </div>
+                <div class="pt-2 border-t border-slate-100 text-xs text-slate-400">
+                    שבוע: {{ start_week|date:"d/m" }} – {{ end_week|date:"d/m" }}
+                </div>
+            </dl>
+        </section>
+
+        <!-- Zodiac cards -->
+        {% if zodiac_cards %}
+        <section class="bg-white rounded-2xl shadow-sm p-5">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">✨ מזל הלקוחות היום</h3>
+            <div class="space-y-3">
+                {% for card in zodiac_cards %}
+                <div class="rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 p-3.5">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span class="text-2xl leading-none">{{ card.symbol }}</span>
+                        <div>
+                            <p class="font-semibold text-slate-800 text-sm leading-tight">{{ card.name }}</p>
+                            <p class="text-xs text-[#b06d4a] font-medium">{{ card.sign }} · {{ card.time|date:"H:i" }}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed">{{ card.tip }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% else %}
+        <section class="bg-white rounded-2xl shadow-sm p-5">
+            <h3 class="text-sm font-semibold text-slate-700 mb-2">✨ מזל הלקוחות היום</h3>
+            <p class="text-xs text-slate-400">
+                כדי לראות את מזל הלקוחות, הוסיפי תאריך לידה בכרטיס הלקוחה.
+            </p>
+        </section>
+        {% endif %}
+
+    </aside>
+</div>
+
+<script>
+  (function () {
+    const clockEl = document.getElementById('live-clock');
+    const dateEl  = document.getElementById('live-date');
+    const DAYS    = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+    const MONTHS  = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function tick() {
+      const now = new Date();
+      if (clockEl) clockEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+      if (dateEl)  dateEl.textContent  = 'יום ' + DAYS[now.getDay()] + ', ' + now.getDate() + ' ב' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+{% endblock %}
