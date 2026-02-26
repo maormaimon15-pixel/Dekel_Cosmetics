@@ -19,7 +19,7 @@
                         <th class="px-3 py-2 text-right">טלפון</th>
                         <th class="px-3 py-2 text-right hidden md:table-cell">אימייל</th>
                         <th class="px-3 py-2 text-right hidden md:table-cell">תאריך הצטרפות</th>
-                        <th class="px-3 py-2"></th>
+                        <th class="px-3 py-2 text-center">פעולות</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -37,10 +37,21 @@
                             <td class="px-3 py-2 text-slate-500 hidden md:table-cell">
                                 {{ client.created_at|date:"d/m/Y" }}
                             </td>
-                            <td class="px-3 py-2 text-left">
-                                <a href="{% url 'management:client_detail' client.pk %}" class="text-xs text-primary-600 hover:underline">
-                                    היסטוריית טיפולים
-                                </a>
+                            <td class="px-3 py-2">
+                                <div class="flex items-center justify-center gap-2">
+                                    <a href="{% url 'management:client_detail' client.pk %}" class="text-xs text-[#c27b55] hover:underline">
+                                        היסטוריה
+                                    </a>
+                                    <a href="{% url 'management:client_edit' client.pk %}" class="inline-flex items-center px-2 py-1 text-xs rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+                                        ערוך
+                                    </a>
+                                    <form method="post" action="{% url 'management:client_delete' client.pk %}" class="inline" onsubmit="return confirm('האם את בטוחה שברצונך למחוק את {{ client.name }}?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="inline-flex items-center px-2 py-1 text-xs rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition">
+                                            מחק
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}

@@ -301,8 +301,14 @@
           calendar.changeView('timeGridDay', info.dateStr);
           return;
         }
-        // Day / Week view: single click opens modal with 60-min default
-        openModal(info.dateStr, null);
+        // Day / Week view: single click opens modal with default business hour (09:00)
+        // Build a proper datetime string for 09:00 on the clicked date
+        const clickedDate = new Date(info.date);
+        const year = clickedDate.getFullYear();
+        const month = pad(clickedDate.getMonth() + 1);
+        const day = pad(clickedDate.getDate());
+        const defaultTime = year + '-' + month + '-' + day + 'T09:00:00';
+        openModal(defaultTime, null);
       },
 
       // Drag-selection: captures exact start & end → duration is synced precisely

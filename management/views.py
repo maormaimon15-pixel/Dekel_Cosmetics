@@ -159,6 +159,39 @@ def client_create(request):
     return render(request, "management/client_form.html", _get_base_context())
 
 
+def client_edit(request, pk):
+    client = get_object_or_404(Client, pk=pk)
+    if request.method == "POST":
+        name = (request.POST.get("name") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        email = (request.POST.get("email") or "").strip() or None
+        age_raw = (request.POST.get("age") or "").strip()
+        birth_date = request.POST.get("birth_date") or None
+        notes = request.POST.get("notes") or ""
+
+        age = int(age_raw) if age_raw.isdigit() else None
+
+        if name and phone:
+            client.name = name
+            client.phone = phone
+            client.email = email
+            client.age = age
+            client.birth_date = birth_date or None
+            client.notes = notes
+            client.save()
+            return redirect("management:client_list")
+
+    return render(request, "management/client_form.html", _get_base_context() | {"client": client})
+
+
+def client_delete(request, pk):
+    client = get_object_or_404(Client, pk=pk)
+    if request.method == "POST":
+        client.delete()
+        return redirect("management:client_list")
+    return redirect("management:client_list")
+
+
 # ── Appointments ───────────────────────────────────────────────────────────────
 
 def appointment_list(request):
