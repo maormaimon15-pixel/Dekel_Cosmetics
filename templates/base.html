@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dekel Cosmetics - ניהול{% endblock %}</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Assistant:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,7 +15,7 @@
           extend: {
             fontFamily: {
               serif: ['"Cormorant Garamond"', 'serif'],
-              sans: ['system-ui', '-apple-system', 'sans-serif'],
+              sans: ['"Assistant"', 'system-ui', 'sans-serif'],
               mono: ['"Space Mono"', 'monospace'],
             },
           },
@@ -24,19 +24,40 @@
     </script>
     <style>
       body { direction: rtl; text-align: right; }
-      /* עיצוב הלוגו - נקי ויוקרתי */
       .logo-font  { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.28em; font-weight: 600; }
-      /* עיצוב השעון הדיגיטלי */
       .clock-font { font-family: 'Space Mono', monospace; letter-spacing: 0.12em; }
-      
-      /* עיצוב רכיבי FullCalendar בצבעי אפרסק/ברונזה של דקל */
+
       .fc { --fc-button-bg-color: #fdf2f0; --fc-button-text-color: #9a3412; --fc-border-color: #fed7aa; }
       .fc-event { background-color: #ffedd5 !important; border: 1px solid #fdba74 !important; color: #9a3412 !important; }
-      
-      /* התאמות לאייפד ולמובייל */
-      @media (max-width: 1024px) {
-        .logo-font { letter-spacing: 0.15em; font-size: 2rem; }
+
+      button, a, [role="button"] { touch-action: manipulation; }
+
+      .nav-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .nav-scroll::-webkit-scrollbar { display: none; }
+
+      @supports (padding: env(safe-area-inset-bottom)) {
+        footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+        .modal-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
       }
+
+      .fc .fc-scrollgrid { min-width: 0 !important; }
+      .fc .fc-timegrid-slot { height: 2rem !important; }
+      @media (max-width: 640px) {
+        .fc .fc-toolbar-title { font-size: 0.85rem !important; }
+        .fc .fc-toolbar { flex-wrap: wrap; gap: 0.25rem; }
+        .fc .fc-button { padding: 0.25rem 0.5rem !important; font-size: 0.72rem !important; }
+        .fc .fc-timegrid-slot { height: 1.6rem !important; }
+        .fc .fc-col-header-cell-cushion,
+        .fc .fc-timegrid-col-events { font-size: 0.7rem; }
+      }
+
+      .modal-content-scroll {
+        max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 4rem);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .touch-target { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -44,20 +65,15 @@
 <div class="flex flex-col min-h-screen">
     
   <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm border-b border-orange-100">
-    <div class="max-w-7xl mx-auto px-4 py-5 flex flex-row-reverse items-center justify-between">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-4 flex items-center justify-between gap-2">
 
-        <div class="shrink-0 flex items-center">
-            <a href="{% url 'management:dashboard' %}">
-                <h1 class="logo-font text-2xl md:text-4xl font-bold text-[#b06d4a] uppercase leading-tight">
-                    DEKEL COSMETICS
-                </h1>
-            </a>
-        </div>
-
-        <nav class="flex flex-row flex-nowrap gap-2 text-sm md:text-base">
-            
-            <a href="{% url 'management:dashboard' %}" 
-               class="whitespace-nowrap px-4 py-2 rounded-full border transition shadow-sm hover:shadow-md hover:scale-[1.02] 
+        <!-- Nav – קודם מצד ימין -->
+        <nav class="nav-scroll flex flex-row flex-nowrap items-center
+                    gap-0.5 sm:gap-1 md:gap-2
+                    text-[9px] sm:text-[10px] md:text-sm
+                    mr-2 sm:mr-4 md:mr-0">
+            <a href="{% url 'management:dashboard' %}"
+               class="whitespace-nowrap px-2 sm:px-2.5 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full border transition
                {% if request.resolver_match.url_name == 'dashboard' %}
                     bg-[#c27b55] border-[#c27b55] text-white font-bold
                {% else %}
@@ -66,30 +82,46 @@
                 עמוד הבית
             </a>
 
-            <a href="{% url 'management:appointment_list' %}" 
-               class="whitespace-nowrap px-3 py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.02] {% if request.resolver_match.url_name == 'appointment_list' %}border-2 border-[#c27b55] font-bold{% endif %}">
+            <a href="{% url 'management:appointment_list' %}"
+               class="whitespace-nowrap px-2 sm:px-2.5 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:bg-white
+               {% if request.resolver_match.url_name == 'appointment_list' %}border-[#c27b55] font-bold{% endif %}">
                 תורים
             </a>
 
-            <a href="{% url 'management:client_list' %}" 
-               class="whitespace-nowrap px-3 py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.02] {% if 'client' in request.resolver_match.url_name %}border-2 border-[#c27b55] font-bold{% endif %}">
+            <a href="{% url 'management:client_list' %}"
+               class="whitespace-nowrap px-2 sm:px-2.5 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:bg-white
+               {% if 'client' in request.resolver_match.url_name %}border-[#c27b55] font-bold{% endif %}">
                 לקוחות
             </a>
 
-            <a href="{% url 'management:finance_dashboard' %}" 
-               class="whitespace-nowrap px-3 py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.02] {% if request.resolver_match.url_name == 'finance_dashboard' %}border-2 border-[#c27b55] font-bold{% endif %}">
+            <a href="{% url 'management:finance_dashboard' %}"
+               class="whitespace-nowrap px-2 sm:px-2.5 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:bg-white
+               {% if request.resolver_match.url_name == 'finance_dashboard' %}border-[#c27b55] font-bold{% endif %}">
                 כספים
             </a>
 
-            <a href="{% url 'management:ai_chat' %}" 
-               class="whitespace-nowrap px-3 py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:shadow-md hover:bg-white hover:scale-[1.02] {% if request.resolver_match.url_name == 'ai_chat' %}border-2 border-[#c27b55] font-bold{% endif %}">
+            <a href="{% url 'management:ai_chat' %}"
+               class="whitespace-nowrap px-2 sm:px-2.5 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-full border border-slate-200 text-slate-700 bg-white/70 transition hover:bg-white
+               {% if request.resolver_match.url_name == 'ai_chat' %}border-[#c27b55] font-bold{% endif %}">
                 דקל-בוט
             </a>
         </nav>
 
+        <!-- Logo – מצד שמאל -->
+        <div class="shrink-0">
+            <a href="{% url 'management:dashboard' %}">
+                <h1 class="logo-font font-bold text-[#b06d4a] uppercase leading-none
+                            text-[0.7rem] sm:text-lg md:text-3xl lg:text-4xl
+                            tracking-[0.12em] sm:tracking-[0.2em] md:tracking-[0.28em]">
+                    DEKEL COSMETICS
+                </h1>
+            </a>
+        </div>
+
     </div>
-</header>
-    <main class="flex-1 max-w-7xl mx-auto w-full px-6 py-10 text-lg md:text-xl">
+  </header>
+
+    <main class="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-10 text-base md:text-lg overflow-x-hidden">
         {% block content %}{% endblock %}
     </main>
 
@@ -108,6 +140,7 @@
         </div>
     </footer>
 </div>
+
 <script>
   function updateClock() {
       const now = new Date();
@@ -117,6 +150,42 @@
   }
   setInterval(updateClock, 1000);
   updateClock();
+</script>
+
+<div id="wa-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" dir="rtl">
+  <div class="flex items-end sm:items-center justify-center min-h-screen px-4 pt-4 pb-4 text-center modal-safe-bottom">
+      <div class="fixed inset-0 transition-opacity bg-slate-500/75 backdrop-blur-sm"></div>
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+      <div class="relative inline-block w-full px-4 pt-5 pb-4 overflow-hidden text-right align-bottom transition-all transform bg-white rounded-t-2xl sm:rounded-2xl shadow-xl sm:my-8 sm:align-middle sm:max-w-sm sm:w-full sm:p-6 border-t-4 border-[#c27b55]">
+          <div class="flex items-center justify-center w-12 h-12 mx-auto bg-orange-100 rounded-full">
+              <svg class="w-6 h-6 text-[#a9603f]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+          </div>
+          <div class="mt-3 text-center sm:mt-5">
+              <h3 class="text-xl font-bold text-slate-900 logo-font">דקל קוסמטיקס</h3>
+              <p class="mt-2 text-sm text-slate-500" id="wa-modal-text">האם לשלוח ללקוחה הודעת וואטסאפ?</p>
+          </div>
+          <div class="mt-5 sm:mt-6 flex flex-col gap-2">
+              <button id="wa-confirm-btn" class="w-full px-4 py-2.5 text-white rounded-full font-bold transition-all bg-[#c27b55] hover:bg-[#a9603f]">שלחי</button>
+              <button id="wa-cancel-btn" class="w-full px-4 py-2 text-slate-600 bg-slate-100 rounded-full font-semibold hover:bg-slate-200 transition-all">לא עכשיו</button>
+          </div>
+      </div>
+  </div>
+</div>
+
+<script>
+function triggerWaModal(url) {
+  const modal = document.getElementById('wa-modal');
+  const confirmBtn = document.getElementById('wa-confirm-btn');
+  confirmBtn.onclick = () => { window.open(url, '_blank'); modal.classList.add('hidden'); history.replaceState({}, '', window.location.pathname); };
+  document.getElementById('wa-cancel-btn').onclick = () => { modal.classList.add('hidden'); history.replaceState({}, '', window.location.pathname); };
+  modal.classList.remove('hidden');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const newWaUrl = urlParams.get('new_wa_url');
+  if (newWaUrl) triggerWaModal(decodeURIComponent(newWaUrl));
+});
 </script>
 </body>
 </html>

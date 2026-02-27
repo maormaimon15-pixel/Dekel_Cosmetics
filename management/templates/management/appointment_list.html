@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
 <style>
   :root {
@@ -68,9 +69,17 @@
                                     {{ appt.get_service_type_display }} · {{ appt.custom_price }} ₪
                                 </p>
                             </div>
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-600">
-                                {% if appt.is_completed %}הושלם{% else %}מתוכנן{% endif %}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="inline-flex items-center px-2 py-1 text-xs rounded-md bg-[#f5e6da] text-[#7c3a1e] hover:bg-[#efd5c0] border border-[#ddb99a] transition" data-bs-toggle="modal" data-bs-target="#rescheduleModal" data-appt-id="{{ appt.pk }}" data-appt-datetime="{{ appt.start_time|date:'Y-m-d' }}T{{ appt.start_time|time:'H:i' }}">
+                                    הזז תור
+                                </button>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px]
+                                    {% if appt.current_status == 'הושלם' %}bg-emerald-50 text-emerald-700
+                                    {% elif appt.current_status == 'בטיפול' %}bg-violet-100 text-violet-700
+                                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                    {{ appt.current_status }}
+                                </span>
+                            </div>
                         </li>
                     {% endfor %}
                 </ul>
@@ -91,8 +100,8 @@
 </div>
 
 <!-- מודאל יצירת תור -->
-<div id="booking-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden backdrop-blur-sm">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-5 md:p-7 border border-orange-100">
+<div id="booking-modal" class="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 hidden backdrop-blur-sm">
+    <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg mx-0 sm:mx-4 p-5 md:p-7 border border-orange-100 modal-content-scroll modal-safe-bottom">
         <div class="flex items-center justify-between mb-4">
             <h2 id="modal-title" class="text-xl font-semibold text-[#b06d4a]">תור חדש</h2>
             <button type="button" id="booking-close" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 text-2xl leading-none transition">
@@ -153,6 +162,26 @@
     </div>
 </div>
 
+<!-- ── מודאל הזזת תור ── -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true" dir="rtl">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border border-orange-100 rounded-2xl overflow-hidden">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-[#b06d4a]" id="rescheduleModalLabel">הזזת תור</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="סגור"></button>
+            </div>
+            <div class="modal-body">
+                <label for="reschedule-datetime" class="form-label">תאריך ושעה חדשים</label>
+                <input type="datetime-local" id="reschedule-datetime" class="form-control">
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="px-4 py-2 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 transition" data-bs-dismiss="modal">ביטול</button>
+                <button type="button" id="reschedule-save-btn" class="px-5 py-2 rounded-full bg-[#c27b55] text-white hover:bg-[#a9603f] transition font-medium">שמירה</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── מודאל יצירת לקוחה חדשה (inline, z-[60] גבוה מעל מודאל התור) ── -->
 <div id="new-client-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] hidden backdrop-blur-sm">
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5 border border-orange-100">
@@ -178,9 +207,24 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script>
+  const DASHBOARD_URL = '{% url "management:dashboard" %}';
+
+  function redirectAfterReschedule(data, fallbackDate) {
+    if (data.wa_url) {
+      window.location.href = DASHBOARD_URL + '?new_wa_url=' + encodeURIComponent(data.wa_url);
+    } else {
+      window.location.href = '{% url "management:appointment_list" %}?date=' + fallbackDate;
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    const rescheduleId = '{{ reschedule_id|default:"" }}';
+    const rescheduleUrl = rescheduleId ? '{% url "management:reschedule_appointment" 0 %}'.replace('/0/', '/' + rescheduleId + '/') : '';
+    const csrfToken = document.querySelector('input[name=csrfmiddlewaretoken]')?.value || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl) return;
 
@@ -264,8 +308,9 @@
     ];
 
     // ── FullCalendar init ──────────────────────────────────────────────────────
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
     const calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'timeGridWeek',
+      initialView: isMobile ? 'timeGridDay' : 'timeGridWeek',
       locale: 'he',
       direction: 'rtl',
       firstDay: 0,
@@ -301,8 +346,17 @@
           calendar.changeView('timeGridDay', info.dateStr);
           return;
         }
-        // Day / Week view: single click opens modal with default business hour (09:00)
-        // Build a proper datetime string for 09:00 on the clicked date
+        if (rescheduleId && rescheduleUrl) {
+          const dt = info.dateStr.slice(0, 16);
+          fetch(rescheduleUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ new_start_datetime: dt })
+          }).then(r => r.json()).then(data => {
+            if (data.success) redirectAfterReschedule(data, info.dateStr.slice(0, 10));
+          });
+          return;
+        }
         const clickedDate = new Date(info.date);
         const year = clickedDate.getFullYear();
         const month = pad(clickedDate.getMonth() + 1);
@@ -314,12 +368,21 @@
       // Drag-selection: captures exact start & end → duration is synced precisely
       select: function (info) {
         if (info.view.type === 'dayGridMonth') {
-          // Clicking/dragging in month view just drills down
           calendar.changeView('timeGridDay', info.startStr);
           calendar.unselect();
           return;
         }
-        // Day / Week view drag: pass both start and end for duration computation
+        if (rescheduleId && rescheduleUrl) {
+          const dt = info.startStr.slice(0, 16);
+          fetch(rescheduleUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ new_start_datetime: dt })
+          }).then(r => r.json()).then(data => {
+            if (data.success) redirectAfterReschedule(data, info.startStr.slice(0, 10));
+          });
+          return;
+        }
         openModal(info.startStr, info.endStr);
       },
     });
@@ -349,6 +412,34 @@
     ncModal  && ncModal.addEventListener('click', function (e) {
       if (e.target === ncModal) closeNewClient();
     });
+
+    // ── Reschedule modal ───────────────────────────────────────────────────────
+    const rescheduleModalEl = document.getElementById('rescheduleModal');
+    if (rescheduleModalEl) {
+      rescheduleModalEl.addEventListener('show.bs.modal', function (e) {
+        const btn = e.relatedTarget;
+        if (btn && btn.dataset.apptId && btn.dataset.apptDatetime) {
+          rescheduleModalEl.dataset.apptId = btn.dataset.apptId;
+          document.getElementById('reschedule-datetime').value = btn.dataset.apptDatetime;
+        }
+      });
+      document.getElementById('reschedule-save-btn')?.addEventListener('click', async function () {
+        const apptId = rescheduleModalEl.dataset.apptId;
+        const dt = document.getElementById('reschedule-datetime').value;
+        if (!apptId || !dt) return;
+        const url = '{% url "management:reschedule_appointment" 0 %}'.replace('/0/', '/' + apptId + '/');
+        const csrf = document.querySelector('input[name=csrfmiddlewaretoken]')?.value;
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ new_start_datetime: dt })
+          });
+          const data = await res.json();
+          if (data.success) redirectAfterReschedule(data, dt.slice(0, 10));
+        } catch (err) { console.error(err); }
+      });
+    }
 
     ncForm && ncForm.addEventListener('submit', async function (e) {
       e.preventDefault();

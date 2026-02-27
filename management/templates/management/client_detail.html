@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{{ client.name }} – היסטוריית טיפולים{% endblock %}
+{% block title %}{{ client.name }} – פרטי לקוחה{% endblock %}
 
 {% block content %}
 <div class="grid gap-6 lg:grid-cols-[1.3fr,2fr]">
 
     <!-- ── Client profile card ──────────────────────────────────────────── -->
-    <section class="bg-white rounded-2xl shadow-sm p-5 md:p-7 h-fit sticky top-24">
+    <section class="bg-white rounded-2xl shadow-sm p-5 md:p-7 h-fit lg:sticky top-24">
 
         <!-- Avatar + name -->
         <div class="flex items-center gap-4 mb-5">
@@ -42,9 +42,27 @@
                 <dd class="font-medium text-slate-800">{{ client.birth_date|date:"d/m/Y" }}</dd>
             </div>
             {% endif %}
-            <div class="flex items-center justify-between py-2">
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
                 <dt class="text-slate-500">סה"כ טיפולים</dt>
                 <dd class="font-semibold text-[#b06d4a] text-base">{{ appointments|length }}</dd>
+            </div>
+            <div class="flex items-center justify-between py-2">
+                <dt class="text-slate-500">הצהרת בריאות</dt>
+                <dd>
+                    {% if client.health_declaration.is_submitted %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ✅ הוגשה
+                        </span>
+                    {% elif client.health_declaration %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                            ❌ טרם הוגשה
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                            — לא נמצא
+                        </span>
+                    {% endif %}
+                </dd>
             </div>
         </dl>
 
@@ -64,7 +82,7 @@
     <!-- ── Appointment history ───────────────────────────────────────────── -->
     <section class="bg-white rounded-2xl shadow-sm p-5 md:p-7">
         <div class="flex items-center justify-between mb-5">
-            <h3 class="text-lg font-semibold text-slate-800">היסטוריית טיפולים</h3>
+            <h3 class="text-lg font-semibold text-slate-800">פרטים</h3>
             {% if appointments %}
             <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">{{ appointments|length }} רשומות</span>
             {% endif %}

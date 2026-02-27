@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 from django.db import models
@@ -16,6 +17,26 @@ class Client(models.Model):
     class Meta:
         verbose_name = "לקוחה"
         verbose_name_plural = "לקוחות"
+
+    def save(self, *args, **kwargs):
+        if self.phone:
+            self.phone = "".join(filter(str.isdigit, self.phone))
+        super().save(*args, **kwargs)
+        try:
+            self.health_declaration
+        except HealthDeclaration.DoesNotExist:
+            HealthDeclaration.objects.create(client=self, is_submitted=False)
+
+    def get_wa_phone(self):
+        """Return phone formatted for WhatsApp (972XXXXXXXXX)."""
+        digits = "".join(filter(str.isdigit, self.phone or ""))
+        if not digits:
+            return ""
+        if digits.startswith("972"):
+            return digits
+        if digits.startswith("0"):
+            return "972" + digits[1:]
+        return "972" + digits
 
     def __str__(self):
         return self.name
@@ -96,7 +117,7 @@ class FinanceRecord(models.Model):
     description = models.TextField(blank=True, verbose_name="תיאור")
     appointment = models.ForeignKey(
         Appointment,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         blank=True,
         null=True,
         related_name="finance_records",
@@ -127,3 +148,58 @@ class PersonalEvent(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class HealthDeclaration(models.Model):
+    """הצהרת בריאות ופרטים אישיים – דקל קוסמטיקס"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.OneToOneField(
+        "Client",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="health_declaration",
+        verbose_name="לקוחה",
+    )
+    is_submitted = models.BooleanField(default=False, verbose_name="הוגשה")
+
+    # Identity – פרטים אישיים
+    full_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="שם מלא")
+    phone_number = models.CharField(max_length=15, blank=True, null=True, verbose_name="טלפון")
+    age = models.PositiveIntegerField(blank=True, null=True, verbose_name="גיל")
+    email = models.EmailField(blank=True, null=True, verbose_name="אימייל - אופציונלי")
+
+    # Critical Medical – שאלון רפואי קריטי
+    roaccutane = models.BooleanField(default=False, verbose_name="שימוש בראוקוטן בשנה האחרונה")
+    active_peeling = models.BooleanField(default=False, verbose_name="שימוש בתכשירים מקלפים פעילים")
+    prescription_creams = models.BooleanField(default=False, verbose_name="תכשירים במרשם רופא")
+
+    # Health History – היסטוריה רפואית
+    past_acne = models.BooleanField(default=False, verbose_name="אקנה בעבר")
+    skin_diseases = models.BooleanField(default=False, verbose_name="מחלות עור")
+    regular_meds = models.BooleanField(default=False, verbose_name="תרופות קבועות")
+    hormonal_contraceptives = models.BooleanField(default=False, verbose_name="גלולות/התקן הורמונלי")
+    is_pregnant = models.BooleanField(default=False, verbose_name="הריון/הנקה")
+
+    # Sensitivities – רגישויות
+    cosmetic_allergies = models.BooleanField(default=False, verbose_name="אלרגיה לתכשירים")
+    numbing_sensitivity = models.BooleanField(default=False, verbose_name="רגישות לאלחוש/עזרקאין")
+    metal_sensitivity = models.BooleanField(default=False, verbose_name="רגישות למתכות - תכשיטים")
+    general_allergies = models.BooleanField(default=False, verbose_name="אלרגיות למזון/חומרים אחרים")
+
+    # Detailed Info – פירוט נוסף
+    medical_notes = models.TextField(blank=True, verbose_name="פירוט נוסף")
+    treatment_reactions = models.TextField(blank=True, verbose_name="תגובות חריפות לטיפולים בעבר")
+
+    # Metadata – תיעוד
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="תאריך מילוי")
+    ip_address = models.GenericIPAddressField(blank=True, null=True, verbose_name="כתובת IP לצרכי תיעוד")
+
+    class Meta:
+        verbose_name = "הצהרת בריאות"
+        verbose_name_plural = "הצהרות בריאות"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.full_name} – {self.created_at.strftime('%d/%m/%Y')}"

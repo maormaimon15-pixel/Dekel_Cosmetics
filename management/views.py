@@ -1,14 +1,19 @@
+import uuid
 from datetime import date, datetime, timedelta
 
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncMonth
 import json
 
+from urllib.parse import quote
+
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
-from appointments.models import Appointment, Client, FinanceRecord, PersonalEvent
+from appointments.models import Appointment, Client, FinanceRecord, HealthDeclaration, PersonalEvent
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -40,6 +45,7 @@ def _get_zodiac(birth_date):
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
 
+@login_required
 def dashboard(request):
     today = timezone.localdate()
     start_week = today - timedelta(days=today.weekday())
@@ -48,12 +54,40 @@ def dashboard(request):
     today_appointments = (
         Appointment.objects.filter(start_time__date=today)
         .select_related("client")
+        .prefetch_related("client__health_declaration")
         .order_by("start_time")
     )
 
+    HEALTH_MSG = "היי {name}, כאן דקל קוסמטיקס. מחכה לראות אותך בטיפול שלנו! לתיאום סופי ומקצועי, אשמח אם תמלאי את הצהרת הבריאות הקצרה בקישור המאובטח הבא: {url}"
+    appointment_rows = []
+    for appt in today_appointments:
+        client = appt.client
+        try:
+            hd = client.health_declaration
+        except HealthDeclaration.DoesNotExist:
+            hd = HealthDeclaration.objects.create(client=client, is_submitted=False)
+        health_url = ""
+        health_submitted = False
+        wa_health_url = ""
+        health_url = request.build_absolute_uri(
+            reverse("management:health_form", kwargs={"id": hd.id})
+        )
+        health_submitted = hd.is_submitted
+        if not health_submitted:
+            msg = HEALTH_MSG.format(name=client.name, url=health_url)
+            wa_health_url = f"https://wa.me/{client.get_wa_phone()}?text={quote(msg)}"
+        appointment_rows.append({
+            "appt": appt,
+            "health_url": health_url,
+            "health_submitted": health_submitted,
+            "wa_health_url": wa_health_url,
+            "wa_confirm_url": f"https://wa.me/{client.get_wa_phone()}?text={quote('היי ' + client.name + ', רציתי לאשר את התור שלך היום בשעה ' + appt.start_time.strftime('%H:%M') + ' 💅✨')}",
+        })
+
     income_today = (
         FinanceRecord.objects.filter(
-            record_type=FinanceRecord.TYPE_INCOME, date=today
+            record_type=FinanceRecord.TYPE_INCOME,
+            date=today,
         ).aggregate(total=Sum("amount"))["total"]
         or 0
     )
@@ -85,6 +119,7 @@ def dashboard(request):
 
     context = _get_base_context() | {
         "today_appointments": today_appointments,
+        "appointment_rows": appointment_rows,
         "zodiac_cards": zodiac_cards,
         "income_today": income_today,
         "income_week": income_week,
@@ -96,11 +131,13 @@ def dashboard(request):
 
 # ── Clients ────────────────────────────────────────────────────────────────────
 
+@login_required
 def client_list(request):
     clients = Client.objects.all().order_by("name")
     return render(request, "management/client_list.html", _get_base_context() | {"clients": clients})
 
 
+@login_required
 def client_detail(request, pk):
     client = get_object_or_404(Client, pk=pk)
     appointments = client.appointments.order_by("-start_time")
@@ -111,6 +148,7 @@ def client_detail(request, pk):
     )
 
 
+@login_required
 def client_create_ajax(request):
     """AJAX: create a client inline from the booking modal without page navigation."""
     if request.method != "POST":
@@ -134,6 +172,7 @@ def client_create_ajax(request):
     return JsonResponse({"ok": True, "id": client.pk, "name": client.name, "phone": client.phone})
 
 
+@login_required
 def client_create(request):
     if request.method == "POST":
         name = (request.POST.get("name") or "").strip()
@@ -146,7 +185,7 @@ def client_create(request):
         age = int(age_raw) if age_raw.isdigit() else None
 
         if name and phone:
-            Client.objects.create(
+            client = Client.objects.create(
                 name=name,
                 phone=phone,
                 email=email,
@@ -154,11 +193,19 @@ def client_create(request):
                 birth_date=birth_date or None,
                 notes=notes,
             )
-            return redirect("management:client_list")
+            try:
+                hd = client.health_declaration
+            except HealthDeclaration.DoesNotExist:
+                hd = HealthDeclaration.objects.create(client=client, is_submitted=False)
+            health_url = request.build_absolute_uri(reverse("management:health_form", kwargs={"id": hd.id}))
+            msg = f"היי {client.name}, כאן דקל קוסמטיקס. מחכה לראות אותך בטיפול שלנו! לתיאום סופי ומקצועי, אשמח אם תמלאי את הצהרת הבריאות הקצרה בקישור המאובטח הבא: {health_url}"
+            wa_url = f"https://wa.me/{client.get_wa_phone()}?text={quote(msg)}"
+            return redirect(f"{reverse('management:dashboard')}?new_wa_url={quote(wa_url)}")
 
     return render(request, "management/client_form.html", _get_base_context())
 
 
+@login_required
 def client_edit(request, pk):
     client = get_object_or_404(Client, pk=pk)
     if request.method == "POST":
@@ -184,6 +231,7 @@ def client_edit(request, pk):
     return render(request, "management/client_form.html", _get_base_context() | {"client": client})
 
 
+@login_required
 def client_delete(request, pk):
     client = get_object_or_404(Client, pk=pk)
     if request.method == "POST":
@@ -194,6 +242,7 @@ def client_delete(request, pk):
 
 # ── Appointments ───────────────────────────────────────────────────────────────
 
+@login_required
 def appointment_list(request):
     selected_date_str = request.GET.get("date")
     if selected_date_str:
@@ -222,6 +271,7 @@ def appointment_list(request):
     )
     clients = Client.objects.all().order_by("name")
 
+    reschedule_id = request.GET.get("reschedule_id")
     return render(
         request,
         "management/appointment_list.html",
@@ -231,10 +281,12 @@ def appointment_list(request):
             "week_appointments": week_appointments,
             "personal_events": personal_events,
             "clients": clients,
+            "reschedule_id": reschedule_id,
         },
     )
 
 
+@login_required
 def appointment_create(request):
     clients = Client.objects.all().order_by("name")
     if request.method == "POST":
@@ -269,13 +321,58 @@ def appointment_create(request):
                 ),
                 appointment=appointment,
             )
-            return redirect("management:appointment_list")
+            date_str = start_dt.strftime("%d/%m/%Y")
+            time_str = start_dt.strftime("%H:%M")
+            msg = f"היי {client.name}, קבענו! מחכה לך בתאריך {date_str} בשעה {time_str} בדקל קוסמטיקס."
+            wa_url = f"https://wa.me/{client.get_wa_phone()}?text={quote(msg)}"
+            return redirect(f"{reverse('management:dashboard')}?new_wa_url={quote(wa_url)}")
 
     return render(request, "management/appointment_form.html", _get_base_context() | {"clients": clients})
 
 
+@login_required
+def reschedule_appointment(request, appointment_id):
+    """POST: Update appointment start_time. Returns wa_url for a WhatsApp rescheduling prompt."""
+    if request.method != "POST":
+        return JsonResponse({"success": False}, status=405)
+    appointment = get_object_or_404(Appointment, pk=appointment_id)
+    raw = request.POST.get("new_start_datetime")
+    if not raw and request.content_type and "application/json" in request.content_type:
+        try:
+            data = json.loads(request.body)
+            raw = data.get("new_start_datetime")
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not raw:
+        return JsonResponse({"success": False}, status=400)
+    try:
+        raw = raw.strip()[:16]
+        start_dt = datetime.strptime(raw, "%Y-%m-%dT%H:%M")
+        start_dt = timezone.make_aware(start_dt, timezone.get_current_timezone())
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False}, status=400)
+
+    appointment.start_time = start_dt
+    appointment.save()
+
+    # Keep the linked FinanceRecord date in sync with the new appointment date
+    fr = appointment.finance_records.filter(record_type=FinanceRecord.TYPE_INCOME).first()
+    if fr:
+        fr.date = start_dt.date()
+        fr.save(update_fields=["date"])
+
+    # Build a WhatsApp rescheduling message for the client
+    client = appointment.client
+    date_str = start_dt.strftime("%d/%m/%Y")
+    time_str = start_dt.strftime("%H:%M")
+    msg = f"היי {client.name}, התור שלך הוזז! מחכה לך בתאריך {date_str} בשעה {time_str} בדקל קוסמטיקס 💅"
+    wa_url = f"https://wa.me/{client.get_wa_phone()}?text={quote(msg)}"
+    return JsonResponse({"success": True, "wa_url": wa_url})
+
+
 # ── Finance ────────────────────────────────────────────────────────────────────
 
+@login_required
 def finance_dashboard(request):
     today = timezone.localdate()
     period = request.GET.get("period", "month")
@@ -602,6 +699,7 @@ def _process_ai_question(q: str) -> str:
     )
 
 
+@login_required
 def ai_chat(request):
     answer = ""
     question = ""
@@ -631,3 +729,110 @@ def ai_chat(request):
             "example_questions": example_questions,
         },
     )
+
+
+# ── Health Declaration (public, no @login_required) ─────────────────────────────
+
+def _get_client_ip(request):
+    x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded:
+        return x_forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+@login_required
+def health_declaration_new(request):
+    """Generate a new UUID and redirect to the health form. Staff can share the resulting URL."""
+    new_uuid = uuid.uuid4()
+    return redirect("management:health_form", id=new_uuid)
+
+
+def health_form_view(request, id):
+    """Public health declaration form. Redirect to success if already submitted."""
+    form_uuid = id
+    existing = HealthDeclaration.objects.filter(pk=form_uuid).first()
+    if existing and existing.is_submitted:
+        return redirect("management:health_declaration_success")
+
+    if request.method == "POST":
+        sig = request.POST.get("signature_confirm") == "on"
+        if not sig:
+            medical_fields = [
+                ("roaccutane", "שימוש בראוקוטן בשנה האחרונה"),
+                ("active_peeling", "שימוש בתכשירים מקלפים פעילים"),
+                ("prescription_creams", "תכשירים במרשם רופא"),
+                ("past_acne", "אקנה בעבר"),
+                ("skin_diseases", "מחלות עור"),
+                ("regular_meds", "תרופות קבועות"),
+                ("hormonal_contraceptives", "גלולות/התקן הורמונלי"),
+                ("is_pregnant", "הריון/הנקה"),
+                ("cosmetic_allergies", "אלרגיה לתכשירים"),
+                ("numbing_sensitivity", "רגישות לאלחוש/עזרקאין"),
+                ("metal_sensitivity", "רגישות למתכות - תכשיטים"),
+                ("general_allergies", "אלרגיות למזון/חומרים אחרים"),
+            ]
+            return render(
+                request,
+                "management/health_form.html",
+                {"form_uuid": form_uuid, "error": "יש לאשר את ההצהרה לפני השליחה.", "medical_fields": medical_fields},
+            )
+
+        def _bool(name):
+            return request.POST.get(name) == "on"
+
+        def _int(name, default=0):
+            try:
+                return int(request.POST.get(name) or default)
+            except ValueError:
+                return default
+
+        data = {
+            "full_name": (request.POST.get("full_name") or "").strip() or None,
+            "phone_number": (request.POST.get("phone_number") or "").strip() or None,
+            "age": _int("age") or None,
+            "email": (request.POST.get("email") or "").strip() or None,
+            "roaccutane": _bool("roaccutane"),
+            "active_peeling": _bool("active_peeling"),
+            "prescription_creams": _bool("prescription_creams"),
+            "past_acne": _bool("past_acne"),
+            "skin_diseases": _bool("skin_diseases"),
+            "regular_meds": _bool("regular_meds"),
+            "hormonal_contraceptives": _bool("hormonal_contraceptives"),
+            "is_pregnant": _bool("is_pregnant"),
+            "cosmetic_allergies": _bool("cosmetic_allergies"),
+            "numbing_sensitivity": _bool("numbing_sensitivity"),
+            "metal_sensitivity": _bool("metal_sensitivity"),
+            "general_allergies": _bool("general_allergies"),
+            "medical_notes": (request.POST.get("medical_notes") or "").strip(),
+            "treatment_reactions": (request.POST.get("treatment_reactions") or "").strip(),
+            "ip_address": _get_client_ip(request) or None,
+            "is_submitted": True,
+        }
+        if existing:
+            for k, v in data.items():
+                setattr(existing, k, v)
+            existing.save()
+        else:
+            HealthDeclaration.objects.create(id=form_uuid, **data)
+        return redirect("management:health_declaration_success")
+
+    medical_fields = [
+        ("roaccutane", "שימוש בראוקוטן בשנה האחרונה"),
+        ("active_peeling", "שימוש בתכשירים מקלפים פעילים"),
+        ("prescription_creams", "תכשירים במרשם רופא"),
+        ("past_acne", "אקנה בעבר"),
+        ("skin_diseases", "מחלות עור"),
+        ("regular_meds", "תרופות קבועות"),
+        ("hormonal_contraceptives", "גלולות/התקן הורמונלי"),
+        ("is_pregnant", "הריון/הנקה"),
+        ("cosmetic_allergies", "אלרגיה לתכשירים"),
+        ("numbing_sensitivity", "רגישות לאלחוש/עזרקאין"),
+        ("metal_sensitivity", "רגישות למתכות - תכשיטים"),
+        ("general_allergies", "אלרגיות למזון/חומרים אחרים"),
+    ]
+    return render(request, "management/health_form.html", {"form_uuid": form_uuid, "medical_fields": medical_fields})
+
+
+def health_declaration_success(request):
+    """Thank you page after successful submission."""
+    return render(request, "management/health_success.html")
